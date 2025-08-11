@@ -1,0 +1,47 @@
+/*popup.css*/
+
+
+body {
+  margin: 0;
+  font-family: sans-serif;
+  background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.container {
+  background: rgba(255, 255, 255, 0.9);
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+input[type="text"] {
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  width: 200px;
+  margin-right: 10px;
+}
+
+button {
+  padding: 8px 16px;
+  background-color: #27ae60;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+button:hover {
+  background-color: #219150;
+}
+
+
+
+
+
+/*end of popup.css*/
