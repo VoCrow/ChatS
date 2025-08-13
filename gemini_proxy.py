@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, Response
-import os, requests, base64, subprocess, tempfile, json
+import os, requests, base64
 from io import BytesIO
 try:
     from gtts import gTTS
@@ -27,48 +27,6 @@ def netcheck():
         return jsonify({ 'reachable': True, 'status': r.status_code })
     except Exception as e:
         return jsonify({ 'reachable': False, 'error': str(e) }), 200
-
-def _offline_vosk_transcribe(mime: str, raw: bytes):
-    """Try offline STT using Vosk if installed and a model is available.
-    Requires ffmpeg in PATH and VOSK_MODEL env var pointing to a model directory.
-    Returns transcript string or None if unavailable/failure.
-    """
-    try:
-        from vosk import Model, KaldiRecognizer
-    except Exception:
-        return None
-    model_path = os.environ.get('VOSK_MODEL', '').strip()
-    if not model_path or not os.path.isdir(model_path):
-        return None
-    # Convert input audio (webm/ogg/etc.) to 16k mono WAV with ffmpeg
-    try:
-        with tempfile.TemporaryDirectory() as td:
-            inp = os.path.join(td, 'in.bin')
-            out = os.path.join(td, 'out.wav')
-            with open(inp, 'wb') as f:
-                f.write(raw)
-            cmd = ['ffmpeg', '-y', '-i', inp, '-ar', '16000', '-ac', '1', '-f', 'wav', out]
-            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-            # Run Vosk
-            model = Model(model_path)
-            rec = KaldiRecognizer(model, 16000)
-            rec.SetWords(True)
-            with open(out, 'rb') as wf:
-                while True:
-                    data = wf.read(4000)
-                    if len(data) == 0:
-                        break
-                    rec.AcceptWaveform(data)
-            # Final result
-            res = rec.FinalResult()
-            try:
-                j = json.loads(res)
-                txt = (j.get('text') or '').strip()
-                return txt or None
-            except Exception:
-                return None
-    except Exception:
-        return None
 
 @app.after_request
 def add_cors_headers(resp):
@@ -184,10 +142,6 @@ def stt():
             except Exception:
                 pass
             msg = (j.get('error', {}) or {}).get('message') if isinstance(j, dict) else None
-            # Attempt offline fallback (Vosk) if available
-            offline = _offline_vosk_transcribe(mime, raw)
-            if offline:
-                return jsonify({ 'transcript': offline, 'offline': True })
             return jsonify({ 'error': 'gemini_error', 'status': status, 'message': msg, 'raw': j, 'mime': mime }), status
         text = (
             j.get('candidates', [{}])[0]
@@ -200,17 +154,9 @@ def stt():
                 print(f"/stt no_transcript body={j}")
             except Exception:
                 pass
-            # Attempt offline fallback (Vosk)
-            offline = _offline_vosk_transcribe(mime, raw)
-            if offline:
-                return jsonify({ 'transcript': offline, 'offline': True })
             return jsonify({ 'error': 'no_transcript', 'raw': j, 'mime': mime }), 502
         return jsonify({ 'transcript': text })
     except Exception as e:
-        # Attempt offline fallback (Vosk)
-        offline = _offline_vosk_transcribe(mime, raw)
-        if offline:
-            return jsonify({ 'transcript': offline, 'offline': True })
         return jsonify({ 'error': 'stt_failed', 'detail': str(e) }), 502
 
 if __name__ == '__main__':
