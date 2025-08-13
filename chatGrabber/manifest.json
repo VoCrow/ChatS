@@ -5,6 +5,5 @@
   "version": "0.1.0",
   "background": { "service_worker": "background.js" },
   "action": { "default_popup": "popup.html" },
-  "permissions": ["microphone"],
-  "optional_permissions": ["tabCapture"]
+  "permissions": ["microphone"]
 }
