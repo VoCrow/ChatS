@@ -1,5 +1,0 @@
-alias log='cat popup.html popup.js popup.css content.js background.js manifest.json | tee >(pbcopy || xclip -selection clipboard)'
-
-
-Hey chat wanna look into the code that i am working on?
-This is a project that i will use to riderect in a sort of way to grab the output of terminal to the input of chat gpt and vice versa through a promt tuning and an extension, a web server and a local python scripts to get everything in place.

@@ -1,27 +1,9 @@
 {
   "manifest_version": 3,
   "name": "ChatSCR",
-  "version": "0.1",
-  "description": "It can do some shady stuff.",
-  "permissions": [
-    "storage",
-    "tabs",
-    "scripting"
-  ],
-  "host_permissions": [
-    "<all_urls>"
-  ],
-  "background": {
-    "service_worker": "background.js"
-  },
-  "action": {
-    "default_popup": "popup.html"
-  },
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
-      "run_at": "document_idle"
-    }
-  ]
+  "description": "...",
+  "version": "0.1.0",
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html" },
+  "permissions": []
 }
