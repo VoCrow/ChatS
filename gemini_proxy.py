@@ -1,5 +1,5 @@
-from flask import Flask, request, jsonify, Response
-import os, requests, base64
+from flask import Flask, request, jsonify, Response, stream_with_context
+import os, requests, base64, json
 from io import BytesIO
 try:
     from gtts import gTTS
@@ -51,7 +51,18 @@ def chat():
         "Content-Type": "application/json",
         "X-goog-api-key": api_key,
     }
-    payload = { "contents": [{ "parts": [{ "text": prompt }] }] }
+    instruction = "Keep your answer concise, under 50 words, and in 2–3 sentences."
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [
+                    { "text": instruction },
+                    { "text": prompt }
+                ]
+            }
+        ]
+    }
     try:
         r = requests.post(url, headers=headers, json=payload, timeout=60)
         j = r.json()
@@ -158,6 +169,66 @@ def stt():
         return jsonify({ 'transcript': text })
     except Exception as e:
         return jsonify({ 'error': 'stt_failed', 'detail': str(e) }), 502
+
+@app.route('/chat_stream', methods=['POST', 'OPTIONS'])
+def chat_stream():
+    if request.method == 'OPTIONS':
+        return ('', 204)
+    data = request.get_json(silent=True) or {}
+    prompt = (data.get('prompt') or '').strip()
+    api_key = os.environ.get('GEMINI_API_KEY')
+    if not api_key:
+        return jsonify({ 'error': 'GEMINI_API_KEY not set' }), 500
+    if not prompt:
+        return jsonify({ 'error': 'prompt required' }), 400
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent"
+    headers = {
+        "Content-Type": "application/json",
+        "X-goog-api-key": api_key,
+    }
+    payload = { "contents": [{ "parts": [{ "text": prompt }] }] }
+
+    def generate():
+        last_text = ""
+        try:
+            with requests.post(url, headers=headers, json=payload, stream=True, timeout=300) as r:
+                if r.status_code >= 400:
+                    try:
+                        err = r.json()
+                    except Exception:
+                        err = { 'status': r.status_code }
+                    yield json.dumps({ 'error': 'upstream_error', 'status': r.status_code, 'raw': err }) + "\n"
+                    return
+                for line in r.iter_lines(decode_unicode=True, chunk_size=1):
+                    if not line:
+                        continue
+                    try:
+                        j = json.loads(line)
+                    except Exception:
+                        continue
+                    # Extract any text parts from the chunk
+                    segs = []
+                    for cand in j.get('candidates', []) or []:
+                        parts = (cand.get('content') or {}).get('parts', [])
+                        for p in parts:
+                            t = p.get('text')
+                            if t:
+                                segs.append(t)
+                    if segs:
+                        combined = ''.join(segs)
+                        # Some streams send cumulative text; emit only the delta
+                        if len(combined) >= len(last_text) and combined.startswith(last_text):
+                            delta = combined[len(last_text):]
+                            last_text = combined
+                        else:
+                            delta = combined
+                            last_text = combined
+                        if delta:
+                            yield json.dumps({ 'text': delta }) + "\n"
+        except Exception as e:
+            yield json.dumps({ 'error': 'stream_failed', 'detail': str(e) }) + "\n"
+
+    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=5403, debug=True)
